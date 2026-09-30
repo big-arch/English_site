@@ -1,0 +1,5 @@
+import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core";
+export const profiles = sqliteTable("profiles", { userId: text("user_id").primaryKey(), goal: text("goal").notNull().default("Работа и жизнь в США или Канаде"), level: text("level").notNull().default("A2") });
+export const progress = sqliteTable("progress", { userId: text("user_id").notNull(), lessonId: text("lesson_id").notNull(), score: integer("score").notNull(), total: integer("total").notNull(), answers: text("answers").notNull(), updatedAt: text("updated_at").notNull() }, t => [primaryKey({ columns: [t.userId, t.lessonId] })]);
+export const chats = sqliteTable("chats", { id: text("id").primaryKey(), userId: text("user_id").notNull(), tutor: text("tutor").notNull(), role: text("role").notNull(), content: text("content").notNull(), createdAt: text("created_at").notNull() }, t => [index("chats_user_tutor_time").on(t.userId, t.tutor, t.createdAt)]);
+export const quotas = sqliteTable("quotas", { userId: text("user_id").notNull(), day: text("day").notNull(), count: integer("count").notNull().default(0) }, t => [primaryKey({ columns: [t.userId, t.day] })]);
