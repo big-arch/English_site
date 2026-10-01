@@ -25,8 +25,12 @@ export async function groq(path:string, init:RequestInit) {
  try { response=await fetch("https://api.groq.com/openai/v1/"+path,{...init,headers:{...init.headers,Authorization:"Bearer "+key},signal:AbortSignal.timeout(45000)}); }
  catch {throw new AppError(503,"ИИ временно не отвечает. Попробуй ещё раз чуть позже.");}
  if(response.status===429) throw new AppError(429,"Бесплатная квота ИИ временно исчерпана. Продолжи урок или попробуй позже.");
- if(!response.ok) throw new AppError(503,"ИИ временно недоступен. Проверь подключение на сервере.");
+ if(!response.ok){
+  if(path==="audio/speech" && response.status===400){const detail=await response.json() as {error?:{code?:string}};if(detail.error?.code==="model_terms_required")throw new AppError(409,"Для озвучивания нужно включить модель Orpheus в аккаунте Groq и принять её условия.");}
+  throw new AppError(503,"ИИ временно недоступен. Проверь подключение на сервере.");
+ }
  return response;
 }
+
 
 
