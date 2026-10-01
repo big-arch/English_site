@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import ts from "typescript";
+const compile=source=>ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+const load=source=>import("data:text/javascript;base64,"+Buffer.from(compile(source)).toString("base64"));
+const {speechChunks}=await load(fs.readFileSync("lib/speech.ts","utf8"));
+assert.deepEqual(speechChunks("Правильный вариант: **Yesterday I created a model.**\nОбъяснение по-русски."),["Yesterday I created a model."]);
+assert.deepEqual(speechChunks("Только русский текст"),[]);
+const long="Yesterday I created a model. ".repeat(20);
+assert.equal(speechChunks(long).join(" "),long.trim());
+assert.ok(speechChunks(long).every(chunk=>chunk.length<=200));
+const routeSource=fs.readFileSync("app/api/speech/route.ts","utf8").replace('from "zod"','from "'+new URL("../node_modules/zod/index.js",import.meta.url).href+'"').replace(/import \{ authorize[^\n]+\n/,`const {authorize,errorResponse,AppError,groqKey,reserveQuota,groq}=globalThis.speechMocks;\n`);
+let requests=0,quotas=0;
+class AppError extends Error{constructor(status,message){super(message);this.status=status;}}
+globalThis.speechMocks={AppError,authorize:async request=>{if(request.headers.get("origin")!=="https://studio.test")throw new AppError(403,"origin");return {userId:"u"};},errorResponse:e=>Response.json({error:e.message},{status:e.status||503}),groqKey:()=>"test",reserveQuota:async(_id,scope)=>{assert.equal(scope,"speech");quotas++;},groq:async(path,init)=>{requests++;assert.equal(path,"audio/speech");assert.equal(JSON.parse(init.body).model,"canopylabs/orpheus-v1-english");return new Response(new Uint8Array(44),{headers:{"Content-Type":"audio/wav"}});}};
+const {POST}=await load(routeSource);
+const request=(text,origin="https://studio.test")=>new Request("https://studio.test/api/speech",{method:"POST",headers:{"Content-Type":"application/json",origin},body:JSON.stringify({text})});
+assert.equal((await POST(request("Hello"))).headers.get("content-type"),"audio/wav");
+assert.equal((await POST(request("Hello"))).headers.get("cache-control"),"private, no-store");
+assert.equal((await POST(request("x".repeat(201)))).status,400);
+assert.equal((await POST(request("Привет"))).status,400);
+assert.equal((await POST(request("Hello","https://other.test"))).status,403);
+assert.equal(requests,2);assert.equal(quotas,2);
+delete globalThis.speechMocks;
+console.log("Passed: English extraction, long reading chunks, audio endpoint, quota scope, length/language validation and cross-origin rejection.");

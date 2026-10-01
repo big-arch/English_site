@@ -9,8 +9,8 @@ export async function authorize(request: Request, write=false) {
  if(write){ const origin=request.headers.get("origin"); if(!origin || origin!==new URL(request.url).origin) throw new AppError(403,"Обнови страницу и повтори запрос."); }
  return user;
 }
-export async function reserveQuota(userId: string) {
- const day=new Date(Date.now()+3*60*60*1000).toISOString().slice(0,10);
+export async function reserveQuota(userId: string, scope: "practice" | "speech" = "practice") {
+ const day=new Date(Date.now()+3*60*60*1000).toISOString().slice(0,10)+(scope==="speech"?"/speech":"");
  const row=await database().prepare("INSERT INTO quotas(user_id,day,count) VALUES(?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count<40 RETURNING count").bind(userId,day).first();
  if(!row) throw new AppError(429,"На сегодня лимит ИИ-практики исчерпан. Уроки и тексты остаются доступны.");
 }
@@ -28,4 +28,5 @@ export async function groq(path:string, init:RequestInit) {
  if(!response.ok) throw new AppError(503,"ИИ временно недоступен. Проверь подключение на сервере.");
  return response;
 }
+
 
