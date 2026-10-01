@@ -3,10 +3,14 @@ import fs from "node:fs";
 import ts from "typescript";
 import { DatabaseSync } from "node:sqlite";
 
+const extended=fs.readFileSync(new URL("../lib/expanded-lessons.ts",import.meta.url),"utf8").replace(/import type[^\n]+\n/,"");
 const source=fs.readFileSync(new URL("../lib/curriculum.ts",import.meta.url),"utf8");
-const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+const compiled=ts.transpileModule(source.replace('import { expandedLessons } from "./expanded-lessons";',extended),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const {lessons,grade}=await import("data:text/javascript;base64,"+Buffer.from(compiled).toString("base64"));
 assert.equal(new Set(lessons.map(l=>l.id)).size,lessons.length);
+assert.equal(lessons.length,33);
+for(const l of lessons){assert.equal(l.exercises.length,3);assert.equal(grade(l,l.exercises.map(e=>e.answers[0])).score,3);for(const e of l.exercises){assert.ok(e.explanation);if(e.options)assert.ok(e.options.includes(e.answers[0]));}}
+assert.ok(lessons.filter(l=>l.exercises.some(e=>!e.options)).length>=8);
 const past=lessons.find(l=>l.id==="past-work");
 assert.equal(grade(past,["created","did","I did not send the drawings."]).score,3);
 assert.equal(grade(past,["am created","are","I didn't sent the drawings"]).score,0);
@@ -23,3 +27,6 @@ save.run("u1","past-work",1,3,"[]","2026-10-01");save.run("u1","past-work",3,3,"
 assert.equal(db.prepare("SELECT score FROM progress WHERE user_id=?").get("u1").score,3);
 assert.equal(db.prepare("SELECT COUNT(*) AS n FROM progress WHERE user_id=?").get("u1").n,1);
 db.close();console.log("Passed: grading variants, incorrect grammar, migration, per-user quota, next-day reset, isolated progress updates.");
+
+
+

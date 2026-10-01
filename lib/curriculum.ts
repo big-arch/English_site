@@ -1,6 +1,7 @@
+import { expandedLessons } from "./expanded-lessons";
 export type Exercise = { prompt: string; options?: string[]; answers: string[]; explanation: string };
 export type Lesson = { id: string; topic: string; title: string; subtitle: string; level: string; minutes: number; rule: string; examples: string[]; text: string; glossary: [string,string][]; exercises: Exercise[] };
-export const topics = ["Все темы", "Грамматика", "BIM и проектирование", "Работа и IT", "США и Канада"];
+
 export const lessons: Lesson[] = [
  {id:"past-work",topic:"Грамматика",title:"Расскажи, что ты сделал",subtitle:"Past Simple в рабочих ситуациях",level:"A2",minutes:7,rule:"Завершённое действие в прошлом: created, finished, sent. В вопросе прошлое показывает did, поэтому основной глагол возвращается к начальной форме. В отрицании: didn't + начальная форма. Не добавляй am или are к created.",examples:["I created a new model yesterday.","When did you finish the model?","I didn't send the drawings."],text:"Yesterday Artur created a bridge model. He checked the drawings and added the attributes. He didn't send the model because one file was missing. This morning, his colleague sent the file, and Artur finished the task.",glossary:[["drawings","чертежи"],["attributes","атрибуты"],["missing","отсутствующий"]],exercises:[
  {prompt:"Yesterday I ___ a new model.",options:["am created","created","create"],answers:["created"],explanation:"Yesterday: завершённое прошлое. Created используется без am."},
@@ -38,7 +39,8 @@ export const lessons: Lesson[] = [
  {prompt:"I work ___ a BIM manager.",options:["as","on","at"],answers:["as"],explanation:"Work as + должность."},
  {prompt:"What ___ this abbreviation mean?",options:["does","is","have"],answers:["does"],explanation:"Вопрос с mean: What does … mean?"},
  {prompt:"Как Макс поступил с незнакомой аббревиатурой?",options:["Попросил объяснить","Ушёл","Пропустил встречу"],answers:["Попросил объяснить"],explanation:"He asks a colleague to explain it."}]}
-];
+, ...expandedLessons];
+export const topics = ["Все темы", ...new Set(lessons.map(lesson=>lesson.topic))];
 export function normalize(value: string) { return value.toLowerCase().replace(/[’`]/g,"'").trim().replace(/[.!?]+$/g,"").replace(/\s+/g," "); }
 export function grade(lesson: Lesson, answers: string[]) {
  const results = lesson.exercises.map((e,i)=>({correct:e.answers.some(a=>normalize(a)===normalize(answers[i]??"")),answer:e.answers[0],explanation:e.explanation,prompt:e.prompt,given:answers[i]??""}));
@@ -49,4 +51,6 @@ export const tutors = [
  {id:"marcus",name:"Marcus",role:"BIM и рабочий английский",initials:"MA",description:"Чертежи, модели, коллеги и собеседования.",opening:"Hi! Tell me about a model you are working on.",instruction:"You are Marcus, an English roleplay partner for a BIM manager. Practise drawings, attributes, clashes and job interviews. Stay in the scenario and offer at most two useful corrections in Russian."},
  {id:"ava",name:"Ava",role:"Жизнь в США и Канаде",initials:"AV",description:"Бытовые разговоры, знакомства и поиск работы.",opening:"Hi! You have just arrived in a new city. What would you like to do first?",instruction:"You are Ava, an English tutor for daily life in the USA and Canada. Roleplay renting, transport and work. Teach language; do not invent current immigration or legal requirements."}
 ];
+
+
 
