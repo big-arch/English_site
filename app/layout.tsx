@@ -7,9 +7,6 @@ export const metadata: Metadata = {
   description: "Короткие уроки, ИИ-репетиторы и английский для BIM, работы и жизни в США и Канаде.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "English Studio", statusBarStyle: "default" },
-  other: {
-    "codex-preview": "development",
-  },
   icons: {
     apple: "/icon-192.png",
     icon: "/favicon.svg",
@@ -24,7 +21,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className="antialiased">{children}</body>
+      <head><link rel="stylesheet" href="/fonts/studio/fonts.css"/><meta name="theme-color" content="#f8f6ef"/></head>
+      <body>{children}</body>
     </html>
   );
 }

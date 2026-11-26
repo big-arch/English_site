@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Check, ChevronLeft, RotateCcw, Volume2, X } from "lucide-react";
 import type { AnswerFeedback, LessonCard, LessonResult } from "../../lib/lesson-types";
+import type { StudioAPI } from "../../lib/studio-model";
 import { fields, imageUrl } from "../../lib/field-guide";
 import { LessonFilm, PhotoWords } from "./field-media";
 import BridgeScene from "./bridge-scene";
@@ -20,7 +21,7 @@ function Tiles({tiles,locked,onChange}:{tiles:string[];locked:boolean;onChange:(
 type Props = {
   lesson:LessonCard; reading:boolean; review?:number[]; next?:LessonCard;
   close:()=>void; open:(lesson:LessonCard,reading?:boolean,review?:number[])=>void;
-  send:<T>(body:unknown)=>Promise<T>; saved:(result:LessonResult,answers:string[])=>void;
+  send:StudioAPI; saved:(result:LessonResult,answers:string[])=>void;
   speak:(text:string)=>void;stopAudio:()=>void; discuss:(message:string)=>void;
 };
 export default function LessonPlayer({lesson,reading,review,next,close,open,send,saved,speak,stopAudio,discuss}:Props){
@@ -63,9 +64,14 @@ export default function LessonPlayer({lesson,reading,review,next,close,open,send
     <button className="text-button" type="button" onClick={close}><ChevronLeft size={17}/>К занятиям</button>
     <div className="eyebrow">{field?fields[field.route].title:lesson.topic} · {lesson.level} · {lesson.minutes} мин</div>
     <h1>{lesson.title}</h1>
-    {focused?<p className="review-label">Повторение ошибок</p>:<ol className="lesson-stages">{stages.map((name,i)=>
-      <li key={name} className={stage>=i?"reached":""} aria-current={stage===i?"step":undefined}>{name}</li>)}</ol>}
-    <div className="stage-enter" key={stage+"-"+step}>
+    <div className="lesson-workbench"><aside className="lesson-index">
+      {field&&<img className="lesson-cover" src={imageUrl(field.route)} alt="" width="1020" height="680"/>}
+      <div className="lesson-plan"><h3>{focused?"Повторение ошибок":"План занятия"}</h3>
+        <ol className="lesson-stages">{stages.map((name,i)=>(!focused||i>=2)&&<li key={name} className={stage>=i?"reached":""} aria-current={stage===i?"step":undefined}>
+          <span>{stage>i?<Check size={12}/>:i+1}</span>{i<stage&&stage<3&&!focused?<button type="button" onClick={()=>go(i)}>{name}</button>:name}</li>)}</ol>
+        <small>{focused?"В этой тренировке":"Заданий в уроке"} · {sequence.length}</small>
+      </div></aside>
+    <div className="lesson-sheet"><div className="stage-enter" key={stage+"-"+step}>
     {stage===0&&<><h2 ref={heading} tabIndex={-1}>{field?"Задача урока":lesson.subtitle}</h2>{field&&<p className="goal-line">{field.goal}</p>}
       <p className="rule">{lesson.rule}</p><div className="examples">{lesson.examples.map(example=><div key={example}><span lang="en">{example}</span>
       <button className="icon-button" aria-label={"Прослушать "+example} onClick={()=>speak(example)}><Volume2 size={17}/></button></div>)}</div>
@@ -108,6 +114,6 @@ export default function LessonPlayer({lesson,reading,review,next,close,open,send
         <div className="review-row" key={r.prompt}><strong>{r.prompt}</strong><p>Твой ответ — {r.given}</p><p className="right-answer">{r.answer}</p><span>{r.explanation}</span></div>)}</details>}
       <button className="text-button" onClick={()=>open(lesson)}><RotateCcw size={15}/>Пройти урок ещё раз</button>
     </>}
-    </div>
+    </div></div></div>
   </section>;
 }

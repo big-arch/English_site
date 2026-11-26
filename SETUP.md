@@ -18,13 +18,17 @@ Production environment changes require deploying the saved version again. Never 
 
 ## Voice and privacy
 
-Microphone recording is explicitly initiated by the user, limited to two minutes, transcribed by Groq, and presented for editing before sending. The app does not persist the audio. Text conversations are stored per authenticated user. The speech endpoint serves English WAV audio from Groq Orpheus. Enable the model and accept its provider terms for the server account. Speech has its own daily allowance of 40 requests per user. The original course films have bundled English audio and captions. No pronunciation score is inferred from a transcript.
+The following applies to the signed-in Sites edition. Microphone recording is explicitly initiated by the user, limited to two minutes, transcribed by Groq, and presented for editing before sending. The app does not persist the audio. Text conversations are stored per authenticated user. Course recordings play directly from the bundled MP3 files. The speech endpoint serves other English text as WAV audio from Groq Orpheus. Enable the model and accept its provider terms for the server account. Speech has its own daily allowance of 40 requests per user. The original course films have bundled English audio and captions. No pronunciation score is inferred from a transcript.
 
 ## Persistence and access
 
 Cloudflare D1 stores profiles, lesson attempts, messages and daily quota counters. Access uses Sites-provided ChatGPT identity. New Sites remain owner-private by default. Runtime changes require verified identity and same-origin requests. The service worker caches only the offline fallback and icons, never personal API responses or lesson history.
 
 The catalog includes A2, A2+, B1 and B2 material. The profile level guides AI prompts. Use the catalog filters to choose practice difficulty. Exercise percentages reflect the latest attempt per lesson, not validated proficiency. Free-text lesson answers use explicit accepted variants; other natural formulations may need tutor review.
+
+## Static release
+
+Run `npm run build:pages` and serve `outputs/pages/` from a static HTTPS host. The service worker caches the application shell and visited images and audio. Native video uses byte ranges online. The static edition grades the same curriculum locally, saves attempts and profile to IndexedDB, and offers guided conversations even without a language model. On compatible desktop browsers a learner may explicitly download or activate the browser's English-language model. The public client has no Groq credential, account cookies or dependency on the private API.
 
 ## Reference
 

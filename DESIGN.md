@@ -1,15 +1,15 @@
-# English Studio design
+# English Studio
 
-Adult learner practising after work on a laptop or phone in ordinary room light: a light readable workspace with a quiet violet accent and a dark ink navigation rail.
+A Russian-speaking adult opens the studio at a desk or on the tram to work. A session starts with a concrete language task and fits on a small screen.
 
-## Color
+## Visual system
 
-Restrained palette. Paper oklch(0.98 0.006 290), ink oklch(0.24 0.03 290), muted oklch(0.55 0.025 290), primary oklch(0.52 0.19 290). Green reserved for actual correct answers; warm red for errors.
+Warm paper (#f8f6ef), forest ink (#183c34), dark green actions (#245546), and a wheat-coloured primary button on the illustrated cover (#f4cf84). The current lesson uses an original linocut-style bridge and tram. Route photography identifies four real situations. Gold is reserved for the cover action and points of interest. Correct and incorrect answers also have written feedback.
 
-## Type and layout
+Self-hosted PT Serif gives the studio, lessons and reading passages a book-like hierarchy. Source Sans 3 carries instructions, navigation, controls and results. Cyrillic and Latin files and licenses are in public/fonts/studio.
 
-System sans, 16px body and generous line height. Main learning prompt visibly larger. Desktop left navigation, mobile bottom navigation. Lessons and topics use a readable list, with a distinct featured lesson. No nested cards, decorative motion or heavy gradients.
+## Navigation and states
 
-## Components
+Desktop uses a horizontal masthead. Mobile uses five labelled bottom tabs. Each section and lesson has a fragment URL usable under a GitHub repository path or at a domain root. A lesson has a reading sheet and a stage index, which becomes a compact strip on mobile. A media page opens directly into the film player. Real attempt data drives results, review and suggested lessons.
 
-Consistent rounded controls, large touch targets, visible keyboard focus. Inline exercise feedback, explicit next button, preserved user input after network errors. Errors and offline status are text as well as color.
+Use explicit keyboard focus, semantic forms, native media controls, large primary actions, and reduced motion. The account edition and static edition share the React views and visual system.

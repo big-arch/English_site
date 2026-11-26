@@ -1,0 +1,47 @@
+name: Publish English Studio to Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: english-studio-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      pages_enabled: ${{ steps.target.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node tests/core.mjs
+      - run: node tests/speech.mjs
+      - run: npx --no-install tsc --noEmit
+      - run: npm run build:pages
+      - run: node tests/pages.mjs
+      - id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "enabled=$(gh api repos/$GITHUB_REPOSITORY --jq .has_pages)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: outputs/pages
+  deploy:
+    needs: build
+    if: needs.build.outputs.pages_enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.published.outputs.page_url }}
+    steps:
+      - id: published
+        uses: actions/deploy-pages@v4

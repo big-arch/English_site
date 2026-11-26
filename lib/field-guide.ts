@@ -66,4 +66,4 @@ export function nextInRoute<T extends Pick<LessonCard,"id"|"field"|"topic">>(cat
   return available.find(item => item.field) ?? available[0];
 }
 
-export const imageUrl = (field: Field) => "/media/field/" + field + ".webp";
+export const imageUrl = (field: Field) => "./media/field/" + field + ".webp";

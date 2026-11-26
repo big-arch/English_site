@@ -14,6 +14,23 @@ const {lessons,grade,normalize}=require("../lib/curriculum.ts");
 const {fieldOrder,fields,films,nextInRoute}=require("../lib/field-guide.ts");
 const {filmLines}=require("../lib/film-transcripts.ts");
 const {conversationTopics}=require("../lib/conversations.ts");
+const {rounds}=require("../lib/guided-rounds.ts");
+const {hashFor,locationFromHash}=require("../lib/studio-model.ts");
+const {tutors}=require("../lib/curriculum.ts");
+const recorded=require("../lib/recorded-speech.json");
+assert.deepEqual(Object.keys(rounds).sort(),conversationTopics.map(t=>t.id).sort());
+for(const [id,turns] of Object.entries(rounds))assert.ok(turns.length===3&&turns.every(t=>t.trim()),id);
+const target={section:"library",lessonId:"field-bridge-walk",route:"bridge",mode:"review"};
+assert.deepEqual(locationFromHash(hashFor(target)),target);
+assert.equal(locationFromHash("#lesson/past-work?from=unknown").section,"lessons");
+assert.equal(locationFromHash("#settings").section,"settings");
+assert.equal(locationFromHash("#bad-route").section,"home");
+const phrases=new Set([...lessons.flatMap(l=>[l.text,...l.examples]),...Object.values(fields).flatMap(f=>f.landmarks.map(p=>p.phrase)),...tutors.map(t=>t.opening)]);
+assert.deepEqual(Object.keys(recorded).sort(),[...phrases].sort());
+for(const phrase of phrases){
+  assert.match(recorded[phrase],/^[a-f0-9]+\.mp3$/);
+  assert.ok(fs.statSync(new URL("../public/media/speech/"+recorded[phrase],import.meta.url)).size>500);
+}
 const legacy=lessons.filter(l=>!l.field);
 const fieldLessons=lessons.filter(l=>l.field);
 assert.equal(new Set(lessons.map(l=>l.id)).size,49);
@@ -99,6 +116,3 @@ assert.deepEqual((await (await api.GET(request())).json()).progress[0].missed,[]
 profileId="reader-a";
 assert.equal((await (await api.GET(request())).json()).progress[0].score,4);
 db.close();console.log("Passed: 49 lessons, 179 exercises, route progression, local media, 27 conversation topics, grading, migration, quotas and two independent review histories.");
-
-
-

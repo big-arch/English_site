@@ -1,99 +1,79 @@
 "use client";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { BookOpen, Home, MessagesSquare, BarChart3, Settings, Check, Play, Volume2, Mic, Square, Send, X, Layers, Download } from "lucide-react";
-import { speechChunks } from "../lib/speech";
-import type { ConversationTopic } from "../lib/conversations";
-import type { LessonCard as Lesson, Attempt as Progress, LessonResult } from "../lib/lesson-types";
-import { nextInRoute } from "../lib/field-guide";
-import { Atlas, FilmLibrary } from "../components/learning/field-media";
+import {useCallback,useEffect,useRef,useState} from "react";
+import {ArrowRight,AudioLines,BookOpen,ChartNoAxesColumnIncreasing,Clapperboard,Compass,GraduationCap,Settings2,UserRound,X} from "lucide-react";
+import {nextInRoute} from "../lib/field-guide";
+import {asset,hashFor,locationFromHash,type Catalog,type DeviceModel,type Location,type Section,type Snapshot,type StudioAPI} from "../lib/studio-model";
+import {serverAPI} from "../lib/studio-api";
+import type {Attempt,LessonCard,LessonResult} from "../lib/lesson-types";
 import LessonPlayer from "../components/learning/lesson-player";
-type Tutor={id:string;name:string;role:string;initials:string;description:string;opening:string};
-type Message={role:string;content:string};
-type Snapshot={profile:{level:string;goal:string};progress:Progress[];messages:Message[];aiReady:boolean;name:string};
-type InstallEvent=Event & {prompt:()=>Promise<void>;userChoice:Promise<{outcome:string}>};
-const nav=[{id:"home",label:"Сегодня",icon:Home},{id:"lessons",label:"Уроки",icon:BookOpen},{id:"tutors",label:"Репетиторы",icon:MessagesSquare},{id:"library",label:"Библиотека",icon:Layers},{id:"progress",label:"Прогресс",icon:BarChart3}];
-async function api<T=Snapshot>(body?:unknown,tutor?:string):Promise<T>{
- const response=await fetch("/api/studio"+(tutor?"?tutor="+tutor:""),body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:undefined);
- const data=await response.json();if(!response.ok)throw new Error((data as {error?:string}).error||"Не удалось загрузить данные.");return data as T;
+import {StudioHome} from "../components/learning/studio-home";
+import {CatalogView} from "../components/learning/catalog";
+import {Library} from "../components/learning/library";
+import {ProgressView} from "../components/learning/journal";
+import {PracticeRoom} from "../components/learning/practice-room";
+import {SettingsView} from "../components/learning/settings";
+import {useLessonAudio} from "../components/learning/audio";
+
+const nav=[
+  {id:"home",name:"Сегодня",short:"Сегодня",icon:Compass},{id:"lessons",name:"Уроки",short:"Уроки",icon:BookOpen},
+  {id:"library",name:"Медиатека",short:"Медиа",icon:Clapperboard},{id:"tutors",name:"Разговор",short:"Разговор",icon:AudioLines},
+  {id:"progress",name:"Прогресс",short:"Прогресс",icon:ChartNoAxesColumnIncreasing},
+] as const;
+export default function Studio({lessons,tutors,topics,conversationTopics,device}:Catalog&{device?:{api:StudioAPI;model:DeviceModel}}){
+  const api=device?.api??serverAPI;
+  const [snapshot,setSnapshot]=useState<Snapshot>(),[error,setError]=useState(""),[loading,setLoading]=useState(true);
+  const [loc,setLocation]=useState<Location>({section:"home"}),[instance,setInstance]=useState(0),[reviewSet,setReview]=useState<number[]>();
+  const [draft,setDraft]=useState(""),[reload,setReload]=useState(0);
+  const heading=useRef<HTMLElement>(null);
+  const {speak,stop,bar}=useLessonAudio(!!device);
+  useEffect(()=>{
+    let active=true;setLoading(true);api().then(s=>{if(active){setSnapshot(s);setError("");}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
+    return()=>{active=false;};
+  },[api,reload]);
+  useEffect(()=>{
+    function read(){stop();setReview(undefined);setDraft("");setLocation(locationFromHash(window.location.hash));setInstance(s=>s+1);window.scrollTo(0,0);}
+    setLocation(locationFromHash(window.location.hash));window.addEventListener("hashchange",read);
+    const install=(event:Event)=>{event.preventDefault();(window as Window&{studioInstall?:Event}).studioInstall=event;};
+    window.addEventListener("beforeinstallprompt",install);
+    if("serviceWorker" in navigator)navigator.serviceWorker.register(asset("sw.js")).catch(()=>{});
+    return()=>{window.removeEventListener("hashchange",read);window.removeEventListener("beforeinstallprompt",install);};
+  },[stop]);
+  const go=useCallback((target:Location,indices?:number[])=>{
+    stop();const hash=hashFor(target);
+    if(window.location.hash!==hash)window.history.pushState(null,"",hash);
+    setLocation(target);setReview(indices);setInstance(n=>n+1);setDraft("");setError("");window.scrollTo({top:0,behavior:"instant"});heading.current?.focus({preventScroll:true});
+  },[stop]);
+  const progress=snapshot?.progress??[],next=nextInRoute(lessons,progress,lessons.find(l=>l.id===progress[0]?.lesson_id));
+  const lesson=lessons.find(l=>l.id===loc.lessonId);
+  function open(l:LessonCard,reading=false,errors?:number[]){go({section:loc.section,lessonId:l.id,route:loc.route,mode:errors?.length?"review":reading?"reading":undefined},errors);}
+  function remember(l:LessonCard,r:LessonResult,answers:string[]){
+    const row:Attempt={lesson_id:l.id,score:r.score,total:r.total,answers:JSON.stringify(answers),updated_at:new Date().toISOString(),missed:r.results.flatMap((a,i)=>a.correct?[]:[i])};
+    setSnapshot(s=>s?{...s,progress:[row,...s.progress.filter(p=>p.lesson_id!==l.id)]}:s);
+  }
+  const navItems=(mobile=false)=>nav.map(n=><a key={n.id} href={hashFor({section:n.id})} aria-current={loc.section===n.id?"page":undefined}
+    onClick={e=>{if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();go({section:n.id});}}><n.icon size={mobile?20:16}/><span>{mobile?n.short:n.name}</span></a>);
+  const step=(section:Section)=>go({section});
+  const needsReview=progress.find(p=>p.missed?.length&&lessons.some(l=>l.id===p.lesson_id));
+  return <div className="studio"><a className="skip-link" href="#studio-main" onClick={e=>{e.preventDefault();heading.current?.focus();}}>К содержанию</a>
+    <header className="masthead"><div className="mast-inner"><a className="wordmark" href="#home" aria-label="English Studio, главная" onClick={e=>{e.preventDefault();step("home");}}>
+      <span className="press-mark" aria-hidden="true"><i/><i/><i/></span><span>English <em>Studio</em></span></a>
+      <nav className="top-nav" aria-label="Разделы студии">{navItems()}</nav>
+      <button className="account-control" aria-label="Настройки профиля" onClick={()=>step("settings")}><GraduationCap size={17}/><span>{snapshot?.profile.level??"A2"}</span><i/><UserRound size={17}/></button></div></header>
+    <main id="studio-main" ref={heading} tabIndex={-1} className="studio-main">
+      {error&&<div className="error-banner" role="alert">{error}<button className="icon-button" aria-label="Закрыть сообщение" onClick={()=>setError("")}><X size={17}/></button></div>}
+      {loading?<div className="skeleton" role="status" aria-label="Открываем студию"><div/><div/><div/></div>:!snapshot?<div className="empty"><h1>Не удалось открыть профиль</h1><button className="primary" onClick={()=>setReload(n=>n+1)}>Попробовать ещё раз</button></div>:
+      <div className="view-enter" key={loc.lessonId??loc.section}>
+      {lesson?<LessonPlayer key={instance} lesson={lesson} reading={loc.mode==="reading"} review={loc.mode==="review"?(reviewSet??progress.find(p=>p.lesson_id===lesson.id)?.missed):undefined}
+        next={nextInRoute(lessons,progress,lesson)} close={()=>go({section:loc.section,route:loc.route})} open={open} send={api} saved={(r,a)=>remember(lesson,r,a)} speak={speak} stopAudio={stop}
+        discuss={text=>{step("tutors");setDraft(text);}}/>:loc.lessonId?<div className="empty"><h1>Урок не найден</h1><button className="primary" onClick={()=>step("lessons")}>В каталог</button></div>:
+      loc.section==="home"?<StudioHome catalog={lessons} progress={progress} next={next} open={open} openRoute={route=>go({section:"lessons",route})} allLessons={()=>step("lessons")} showProgress={()=>step("progress")}
+        practice={()=>step("tutors")} library={()=>step("library")} review={()=>{const l=lessons.find(i=>i.id===needsReview?.lesson_id);if(l)open(l,false,needsReview?.missed);else step("progress");}}/>:
+      loc.section==="lessons"?<CatalogView key={loc.route??"all"} items={lessons} topics={topics} progress={progress} route={loc.route} clearRoute={()=>step("lessons")} open={open}/>:
+      loc.section==="library"?<Library lessons={lessons} progress={progress} open={open} stop={stop}/>:
+      loc.section==="tutors"?<PracticeRoom tutors={tutors} topics={conversationTopics} api={api} cloudReady={snapshot.aiReady} model={device?.model} initialDraft={draft} speak={speak} stop={stop}/>:
+      loc.section==="progress"?<ProgressView lessons={lessons} progress={progress} first={()=>open(next??lessons[0])} open={open} review={l=>open(l,false,progress.find(p=>p.lesson_id===l.id)?.missed)}/>:
+      <SettingsView profile={snapshot.profile} device={!!device} api={api} saved={profile=>setSnapshot(s=>s?{...s,profile}:s)}/>}</div>}
+    </main>
+    <footer className="studio-footer"><span>English <em>Studio</em></span><button className="text-button" onClick={()=>step("settings")}><Settings2 size={15}/>Мои настройки <ArrowRight size={14}/></button></footer>
+    <nav className="bottom-nav" aria-label="Мобильная навигация">{navItems(true)}</nav>{bar}</div>;
 }
-export default function Studio({lessons,tutors,topics,conversationTopics}:{lessons:Lesson[];tutors:Tutor[];topics:string[];conversationTopics:ConversationTopic[]}){
- const [view,setView]=useState("home"),[topic,setTopic]=useState("Все темы"),[snapshot,setSnapshot]=useState<Snapshot|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
- const [lesson,setLesson]=useState<Lesson|null>(null),[reading,setReading]=useState(false),[review,setReview]=useState<number[]>(),[session,setSession]=useState(0);
- const [difficulty,setDifficulty]=useState("Все уровни");
- const [tutor,setTutor]=useState(tutors[0]),[messages,setMessages]=useState<Message[]>([]),[draft,setDraft]=useState(""),[recording,setRecording]=useState(false),[goal,setGoal]=useState(""),[level,setLevel]=useState("A2"),[saved,setSaved]=useState(false),[install,setInstall]=useState<InstallEvent|null>(null);
- const [audioStatus,setAudioStatus]=useState(""),[audioPart,setAudioPart]=useState(0),[audioTotal,setAudioTotal]=useState(0);
- const audioElement=useRef<HTMLAudioElement|null>(null),audioUrl=useRef<string|null>(null),audioRequest=useRef<AbortController|null>(null),audioVersion=useRef(0),audioQueue=useRef<string[]>([]);
- const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null),recordTimer=useRef<ReturnType<typeof setTimeout>|null>(null),chatEnd=useRef<HTMLDivElement|null>(null),tutorVersion=useRef(0);
- useEffect(()=>{let active=true;api().then(data=>{if(active){setSnapshot(data);setGoal(data.profile.goal);setLevel(data.profile.level);}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
- const handle=(event:Event)=>{event.preventDefault();setInstall(event as InstallEvent);};window.addEventListener("beforeinstallprompt",handle);
- if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
- return()=>{active=false;window.removeEventListener("beforeinstallprompt",handle);if(recordTimer.current)clearTimeout(recordTimer.current);stream.current?.getTracks().forEach(t=>t.stop());stopAudio(false);window.speechSynthesis?.cancel();};},[]);
- useEffect(()=>{chatEnd.current?.scrollIntoView({block:"nearest",behavior:"smooth"});},[messages]);
- const progress=snapshot?.progress||[],next=nextInRoute(lessons,progress,lessons.find(l=>l.id===progress[0]?.lesson_id));
- const attempted=progress.reduce((n,p)=>n+p.total,0),correct=progress.reduce((n,p)=>n+p.score,0);
- function navigate(to:string){stopAudio();window.scrollTo({top:0,behavior:"instant"});setView(to);setLesson(null);setError("");setSaved(false);if(recording)recorder.current?.stop();if(to==="tutors")void chooseTutor(tutor);window.speechSynthesis?.cancel();}
- function openLesson(l:Lesson,fromText=false,errors?:number[]){stopAudio();setLesson(l);setReading(fromText);setReview(errors);setSession(n=>n+1);setError("");window.scrollTo(0,0);}
- function closeLesson(){stopAudio();setLesson(null);window.scrollTo(0,0);}
- function remember(l:Lesson,result:LessonResult,answers:string[]){
-   const row:Progress={lesson_id:l.id,score:result.score,total:result.total,answers:JSON.stringify(answers),updated_at:new Date().toISOString(),
-     missed:result.results.flatMap((check,i)=>check.correct?[]:[i])};
-   setSnapshot(previous=>previous?{...previous,progress:[row,...previous.progress.filter(item=>item.lesson_id!==l.id)]}:previous);
- }
- async function refresh(){const data=await api();setSnapshot(data);}
- function stopAudio(update=true){++audioVersion.current;audioRequest.current?.abort();audioRequest.current=null;audioElement.current?.pause();if(audioUrl.current)URL.revokeObjectURL(audioUrl.current);audioUrl.current=null;audioQueue.current=[];if(update)setAudioStatus("");}
- async function loadAudioPart(part:number,version:number){
-  if(version!==audioVersion.current)return;
-  setAudioStatus("loading");setAudioPart(part+1);
-  const controller=new AbortController();audioRequest.current=controller;
-  try{
-   const response=await fetch("/api/speech",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:audioQueue.current[part]}),signal:controller.signal});
-   if(!response.ok){const data=await response.json() as {error?:string};if(response.status===409){setAudioStatus("setup");return;}throw new Error(data.error||"Не удалось получить озвучивание.");}
-   const blob=await response.blob();if(version!==audioVersion.current)return;
-   if(audioUrl.current)URL.revokeObjectURL(audioUrl.current);
-   audioUrl.current=URL.createObjectURL(blob);const player=audioElement.current;
-   if(!player)throw new Error("Не удалось открыть аудиоплеер.");
-   player.src=audioUrl.current;player.playbackRate=0.9;setAudioStatus("ready");
-   try{await player.play();if(version===audioVersion.current)setAudioStatus("playing");}catch{if(version===audioVersion.current)setAudioStatus("ready");}
-  }catch(e){if(version===audioVersion.current && !controller.signal.aborted){setAudioStatus("error");setError((e as Error).message);}}
- }
- function speak(text:string){
-  stopAudio();window.speechSynthesis?.cancel();setError("");
-  try{const chunks=speechChunks(text);if(!chunks.length){setError("В этом ответе нет английского текста для озвучивания.");return;}audioQueue.current=chunks;setAudioTotal(chunks.length);void loadAudioPart(0,audioVersion.current);}catch(e){setError((e as Error).message);}
- }
- function nextAudio(){if(audioPart<audioQueue.current.length)void loadAudioPart(audioPart,audioVersion.current);else setAudioStatus("ended");}
- async function chooseTutor(t: Tutor){if(busy||recording)return;stopAudio();const version=++tutorVersion.current;setTutor(t);setMessages([]);setError("");setBusy(true);try{const data=await api(undefined,t.id);if(version===tutorVersion.current)setMessages(data.messages);}catch(e){setError((e as Error).message);}finally{if(version===tutorVersion.current)setBusy(false);}}
- async function send(event:FormEvent){event.preventDefault();if(!draft.trim()||busy)return;const text=draft.trim();setBusy(true);setError("");try{const response=await api<{content:string}>({action:"chat",tutor:tutor.id,message:text});setMessages(m=>[...m,{role:"user",content:text},{role:"assistant",content:response.content}]);setDraft("");}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- async function record(){if(recording){recorder.current?.stop();return;}if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){setError("Этот браузер не поддерживает запись. Можно написать ответ.");return;}
- try{stream.current=await navigator.mediaDevices.getUserMedia({audio:true});const chunks:BlobPart[]=[];const preferred=["audio/webm;codecs=opus","audio/mp4","audio/ogg;codecs=opus"].find(t=>MediaRecorder.isTypeSupported(t));const rec=new MediaRecorder(stream.current,preferred?{mimeType:preferred}:undefined);recorder.current=rec;
- rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
- rec.onstop=async()=>{if(recordTimer.current)clearTimeout(recordTimer.current);stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;setRecording(false);setBusy(true);setError("");try{const mime=rec.mimeType.split(";")[0];const ext=mime==="audio/mp4"?"m4a":mime==="audio/ogg"?"ogg":"webm";const form=new FormData();form.set("audio",new File(chunks,"answer."+ext,{type:mime}));const res=await fetch("/api/voice",{method:"POST",body:form});const data=await res.json() as {text:string;error?:string};if(!res.ok)throw new Error(data.error);setDraft(d=>d+(d?" ":"")+data.text);}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
- rec.start();setRecording(true);recordTimer.current=setTimeout(()=>{if(rec.state==="recording")rec.stop();},120000);
- }catch{stream.current?.getTracks().forEach(t=>t.stop());setError("Не удалось включить микрофон. Проверь разрешение в браузере.");}}
- async function saveProfile(event:FormEvent){event.preventDefault();setBusy(true);setSaved(false);setError("");try{await api({action:"profile",goal,level});await refresh();setSaved(true);}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- function lessonRow(l:Lesson,i:number){const p=progress.find(p=>p.lesson_id===l.id);return <button className="lesson-row" key={l.id} onClick={()=>openLesson(l)}><span className={"lesson-number "+(p?.score===p?.total&&p?"done":"")}>{p&&p.score===p.total?<Check size={20}/>:String(i+1).padStart(2,"0")}</span><span className="row-copy"><strong>{l.title}</strong><span>{l.subtitle}</span></span><span className="row-meta">{p? p.score+"/"+p.total : l.minutes+" мин"}<span>{l.level}</span></span></button>;}
- const titles:Record<string,string>={home:"Твой английский, шаг за шагом",lessons:"Учись на знакомых ситуациях",tutors:"Практика с репетитором",library:"Видео и тексты",progress:"Что уже получается",settings:"Твои настройки"};
- return <div className="app-shell">{audioStatus&&<section className="audio-player" aria-label="Озвучивание английского"><div><strong>Английские фразы</strong><span role="status">{audioStatus==="loading"?"Готовим аудио…":audioStatus==="ready"?"Нажми ▶ для воспроизведения":audioStatus==="setup"?"Нужно включить голос в аккаунте Groq":audioStatus==="error"?"Не удалось загрузить аудио":audioStatus==="ended"?"Прослушивание завершено":"Фрагмент "+audioPart+" из "+audioTotal}</span>{audioStatus==="setup"&&<a href="https://console.groq.com/playground?model=canopylabs%2Forpheus-v1-english" target="_blank" rel="noopener noreferrer">Открыть условия Orpheus</a>}</div><audio hidden={["loading","setup","error"].includes(audioStatus)} ref={audioElement} controls preload="auto" onEnded={nextAudio} onPlay={()=>setAudioStatus("playing")} onPause={()=>setAudioStatus(s=>s==="playing"?"ready":s)} onError={()=>{setAudioStatus("error");setError("Браузер не смог воспроизвести аудио. Попробуй открыть сайт в Chrome, Edge или Safari.");}}/><button className="icon-button" aria-label="Остановить озвучивание" onClick={()=>stopAudio()}><X size={19}/></button></section>}<aside className="sidebar"><a className="brand" href="/" aria-label="English Studio"><span className="brand-mark">e.</span><span>English<br/><b>Studio</b></span></a><span className="nav-caption">ТВОЁ ПРОСТРАНСТВО</span><nav>{nav.map(n=><button key={n.id} className={view===n.id?"nav-item active":"nav-item"} onClick={()=>navigate(n.id)}><n.icon size={20}/><span>{n.label}</span></button>)}</nav><div className="sidebar-footer"><span className="small">Учебный ориентир</span><strong>{snapshot?.profile.level||"A2"} <span>English learner</span></strong><button className={"nav-item "+(view==="settings"?"active":"")} onClick={()=>navigate("settings")}><Settings size={18}/>Настройки</button></div></aside>
- <main><header className="topbar"><span>Английский для работы и жизни</span><div><span className="level-pill">{snapshot?.profile.level||"A2"}</span><button className="profile-button" onClick={()=>navigate("settings")} aria-label="Настройки профиля">A</button></div></header>
- {error&&<div className="error-banner" role="alert"><span>{error}</span><button onClick={()=>setError("")} aria-label="Закрыть сообщение"><X size={18}/></button></div>}
- {loading?<div className="skeleton"><div/><div/><div/></div>:<div className="content">
- {lesson?<LessonPlayer key={session} lesson={lesson} reading={reading} review={review} next={nextInRoute(lessons,progress,lesson)} open={openLesson}
- close={closeLesson} send={api} saved={(result,answers)=>remember(lesson,result,answers)} speak={speak} stopAudio={stopAudio}
- discuss={message=>{navigate("tutors");setDraft(message);}}/>:<>
- <div className="page-heading"><div className="eyebrow">ENGLISH STUDIO / {nav.find(n=>n.id===view)?.label||"ПРОФИЛЬ"}</div><h1>{titles[view]}</h1></div>
- {view==="home"&&<Atlas catalog={lessons} progress={progress} next={next} open={openLesson} allLessons={()=>{setTopic("Все темы");setDifficulty("Все уровни");navigate("lessons");}} showProgress={()=>navigate("progress")} goal={snapshot?.profile.goal} practice={()=>navigate("tutors")}/>}
- {view==="lessons"&&<><div className="catalog-controls"><label>Тема<select value={topic} onChange={e=>setTopic(e.target.value)}>{topics.map(t=><option key={t}>{t}</option>)}</select></label>
- <label>Сложность<select value={difficulty} onChange={e=>setDifficulty(e.target.value)}>{["Все уровни","A2","A2+","B1","B2"].map(t=><option key={t}>{t}</option>)}</select></label></div>
- {(()=>{const filtered=lessons.filter(l=>(topic==="Все темы"||l.topic===topic)&&(difficulty==="Все уровни"||l.level===difficulty));
- return filtered.length?<div className="lesson-list">{filtered.map(lessonRow)}</div>:<div className="empty"><h3>Уроков с таким сочетанием пока нет</h3><button className="secondary" onClick={()=>{setTopic("Все темы");setDifficulty("Все уровни");}}>Показать все уроки</button></div>;})()}</>}
- {view==="library"&&<><FilmLibrary open={id=>{const item=lessons.find(l=>l.id===id);if(item)openLesson(item);}} stopAudio={stopAudio}/><h2>Тексты на знакомые темы</h2><div className="reading-list">{lessons.map(l=><button key={l.id} onClick={()=>openLesson(l,true)}><span className="small">{l.topic} · {l.level}</span><strong>{l.title}</strong><span>{l.text.slice(0,110)}…</span><small>Словарь · озвучивание</small></button>)}</div><h2 className="section-title">Видео на сайтах авторов</h2><p className="muted">Открываются на сайте автора. Смотри короткими фрагментами и выписывай полезные фразы.</p><div className="video-list">{[{title:"The Interview",provider:"VOA Learning English",detail:"Американский английский · собеседование",url:"https://learningenglish.voanews.com/a/lets-learn-english-level-2-lesson-2/3960471.html"},{title:"You're Hired",provider:"British Council",detail:"B1–B2 · серия о работе и найме",url:"https://learnenglish.britishcouncil.org/free-resources/business/youre-hired"},{title:"Video Zone",provider:"British Council",detail:"Культура, технологии и повседневная жизнь",url:"https://learnenglish.britishcouncil.org/free-resources/general/video-zone"}].map(v=><a href={v.url} key={v.title} target="_blank" rel="noopener noreferrer"><span className="play-icon"><Play size={22}/></span><div><small>{v.provider}</small><strong>{v.title}</strong><p>{v.detail}</p></div><span className="small">Смотреть</span></a>)}</div></>}
- {view==="tutors"&&<><div className="tutor-picker">{tutors.map(t=><button className={t.id===tutor.id?"tutor-option selected":"tutor-option"} key={t.id} disabled={busy||recording} onClick={()=>void chooseTutor(t)}><span className="avatar">{t.initials}</span><span><strong>{t.name}</strong><small>{t.role}</small></span></button>)}</div><section className="conversation-topics" aria-label="Темы для разговора"><h2>О чём поговорим?</h2><p className="muted">Выбери ситуацию — запрос появится в поле сообщения. Нажми «Отправить», чтобы начать, затем отвечай текстом или голосом.</p><div>{conversationTopics.filter(item=>item.tutor===tutor.id).map(item=><button key={item.id} disabled={busy||recording} onClick={()=>{setDraft(d=>d.includes(item.prompt)?d:(d?d+"\n\n":"")+item.prompt);setError("");document.querySelector<HTMLTextAreaElement>("textarea[aria-label=\"Сообщение репетитору\"]")?.focus();}}><strong>{item.title}</strong><span>{item.description}</span></button>)}</div></section><section className="chat-panel"><div className="chat-title"><span className="avatar">{tutor.initials}</span><div><strong>{tutor.name}</strong><p>{tutor.description}</p></div><span className="small">ИИ-репетитор</span></div>{!snapshot?.aiReady&&<div className="connection-note">ИИ ещё не подключён. Для диалога и распознавания речи владельцу нужно добавить ключ Groq на сервере. Уроки работают уже сейчас.</div>}<div className="messages"><div className="message assistant"><span>{tutor.opening}</span><button className="icon-button" onClick={()=>speak(tutor.opening)} aria-label="Послушать приветствие"><Volume2 size={16}/></button></div>{messages.map((m,i)=><div className={"message "+m.role} key={i}><span>{m.content}</span>{m.role==="assistant"&&<button className="icon-button" aria-label="Послушать английские фразы ответа" onClick={()=>speak(m.content)}><Volume2 size={16}/></button>}</div>)}{busy&&<div className="small" role="status">Обрабатываем ответ…</div>}<div ref={chatEnd}/></div><form className="composer" onSubmit={send}><textarea aria-label="Сообщение репетитору" placeholder="Напиши по-английски или запиши голосом…" maxLength={3000} value={draft} disabled={busy} onChange={e=>setDraft(e.target.value)}/><div><button type="button" className={recording?"record-button recording":"record-button"} disabled={busy||!snapshot?.aiReady} onClick={()=>void record()}>{recording?<Square size={17}/>:<Mic size={17}/>}<span>{recording?"Остановить":"Голос"}</span></button><span className="small">Запись до 2 минут</span><button className="primary" disabled={busy||recording||!draft.trim()||!snapshot?.aiReady}><Send size={17}/>Отправить</button></div></form><p className="chat-footnote">Распознанный текст появится в поле: проверь его перед отправкой. Озвучиваются английские фразы. Русские пояснения остаются в тексте. Ответ ИИ можно перепроверить.</p></section></>}
- {view==="progress"&&<><div className="stats-line"><div><strong>{progress.length}</strong><span>уроков с результатом</span></div><div><strong>{attempted?Math.round(correct/attempted*100)+"%":"—"}</strong><span>верных ответов в последних попытках</span></div><div><strong>{snapshot?.profile.level}</strong><span>выбранный учебный уровень</span></div></div><p className="muted">Процент рассчитан по последней полной попытке каждого урока.</p><h2>История занятий</h2>{!progress.length?<div className="empty"><BookOpen/><h3>Здесь появятся твои результаты</h3><p>Заверши первое занятие: сохраним ответы и темы для повторения.</p><button className="primary" onClick={()=>openLesson(next??lessons[0])}>Начать первый урок</button></div>:progress.map(p=>{const l=lessons.find(l=>l.id===p.lesson_id);return l?<div className="history-row" key={p.lesson_id}><div><strong>{l.title}</strong><span>{new Date(p.updated_at).toLocaleDateString("ru-RU",{timeZone:"Europe/Moscow"})}</span></div><span>{p.score}/{p.total}</span><button className="text-button" onClick={()=>openLesson(l)}>Повторить</button></div>:null;})}<h2 className="section-title">Для закрепления</h2>{progress.filter(p=>p.score<p.total).length?progress.filter(p=>p.score<p.total).map(p=>{const l=lessons.find(l=>l.id===p.lesson_id);return l?<button className="lesson-row" key={l.id} onClick={()=>openLesson(l,false,p.missed)}><span className="row-copy"><strong>{l.title}</strong><span>Повторить задания с ошибками · {p.total-p.score}</span></span></button>:null;}):<p className="muted">{progress.length?"В последних попытках нет ошибок. Закрепи знания в разговоре.":"После первого урока подберём темы для повторения."}</p>}</>}
- {view==="settings"&&<section className="settings-panel"><form onSubmit={saveProfile}><label>Для чего тебе английский?<textarea value={goal} maxLength={300} onChange={e=>setGoal(e.target.value)} required minLength={3}/></label><label>Учебный уровень<select value={level} onChange={e=>setLevel(e.target.value)}>{["A1","A2","B1","B2","C1","C2"].map(l=><option key={l}>{l}</option>)}</select></label><p className="muted">Этот ориентир учитывают ИИ-репетиторы. В каталоге можно выбрать задания от A2 до B2.</p><button className="primary" disabled={busy}>{busy?"Сохраняем…":"Сохранить"}</button>{saved&&<p role="status" className="success-text">Настройки сохранены</p>}</form><hr/><h2>Установить на телефон</h2>{install?<button className="secondary" onClick={async()=>{await install.prompt();setInstall(null);}}><Download size={18}/>Установить приложение</button>:<p>На iPhone: Safari → «Поделиться» → «На экран Домой». На Android: меню браузера → «Установить приложение» или «Добавить на главный экран».</p>}<hr/><h2>Бесплатный ИИ</h2><p>{snapshot?.aiReady?"Подключение Groq настроено. Используй аккаунт Free без платёжного тарифа.":"Подключение ожидает ключ Groq на сервере."} До 40 обращений в сутки на пользователя, включая распознавание. При исчерпании квоты уроки остаются доступны.</p><p className="muted">Записи отправляются Groq для расшифровки и не сохраняются платформой. Текст диалога и результаты хранятся в твоём профиле.</p><a className="text-button" href="/signout-with-chatgpt?return_to=/" target="_top">Выйти из аккаунта</a></section>}
- </>}
- </div>}</main><nav className="mobile-nav">{nav.map(n=><button key={n.id} className={view===n.id?"active":""} onClick={()=>navigate(n.id)} aria-label={n.label}><n.icon size={20}/><span>{n.label}</span></button>)}</nav></div>;
-}
-
-
-
-
-
