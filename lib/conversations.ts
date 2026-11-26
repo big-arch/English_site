@@ -1,6 +1,6 @@
 export type ConversationTopic={id:string;tutor:string;title:string;description:string;prompt:string};
-function topic(id:string,tutor:string,title:string,description:string,scenario:string):ConversationTopic{
- return {id,tutor,title,description,prompt:"Let's practise this situation at A2 level: "+scenario+" Ask me one short question at a time in English. Let me answer before giving hints. Give brief corrections in Russian when helpful."};
+function topic(id:string,tutor:string,title:string,description:string,scenario:string,level="A2"):ConversationTopic{
+ return {id,tutor,title,description,prompt:"Let's practise this situation at "+level+" level: "+scenario+" Ask me one question at a time in English. Let me answer before giving hints. Give brief corrections in Russian when helpful."};
 }
 export const conversationTopics:ConversationTopic[]=[
 topic("yesterday","emma","Вчерашний день","Past Simple без am и is","Ask about what I did yesterday and help me use Past Simple."),
@@ -21,4 +21,13 @@ topic("housing","ava","Просмотр квартиры","Аренда, рай�
 topic("hotel","ava","Заселение в отель","Бронь и просьба о тихом номере","You are a hotel receptionist. I have a reservation for three nights and want a quiet room. Ask one question at a time."),
 topic("networking","ava","Знакомство с инженером","Представься и поддержи беседу","You are an engineer I meet at a professional event in Canada. Ask about my job, projects and interests, then practise staying in touch."),
 topic("weekend","ava","Разговор с новым коллегой","Выходные и повседневные интересы","You are a new colleague. Have a friendly conversation about our weekend, hobbies and favourite places. Use short questions."),
+topic("inspection","emma","Что видно на фотографии?","B1 · наблюдение и догадка","I saw a dark patch on a bridge pier. Ask what I actually observed and what might explain it.","B1"),
+topic("alternatives","emma","Если бы условия изменились","B2 · условные предложения","Compare commuting by train and bus. Give me a new constraint and ask how my decision would change.","B2"),
+topic("retro","emma","Ретроспектива IT-команды","B2 · нереализованные возможности","We shipped an update late. Ask what happened and what we could have done differently. Help me express a past counterfactual.","B2"),
+topic("rev-b","marcus","Передача ревизии B","B1 · сообщение о результате","You found an old printout and a new drawing. Ask me to confirm the current version and when the change was made.","B1"),
+topic("release","marcus","Согласование выпуска","B2 · аргументы и ограничения","You want to issue a model externally. Two assumptions remain open. Negotiate what can be shared internally and what sign-off is needed.","B2"),
+topic("incident","marcus","Разбор сбоя экспорта","B1 · последовательность событий","You are the IT lead. Yesterday our model export stopped midway. Ask me what I observed, what I tried and what I need from you.","B1"),
+topic("central","ava","Пересадка по пути в офис","B1 · запасной маршрут","We're on a delayed tram. Ask how we can still get to the office by nine and which stop we need.","B1"),
+topic("remake","ava","Перепутанный заказ","B1 · тактичная просьба","You are a barista. My order is wrong. Let me explain the problem, request a replacement and respond to your offer.","B1"),
+topic("neighbourhood","ava","Два района для переезда","B2 · выбор с оговоркой","Compare two fictional neighbourhoods in Canada with me. One is close to work and one has more reliable transit. Ask for my trade-off and what would change my mind.","B2"),
 ];

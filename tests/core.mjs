@@ -1,16 +1,58 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import ts from "typescript";
 import { DatabaseSync } from "node:sqlite";
 
-const extended=fs.readFileSync(new URL("../lib/expanded-lessons.ts",import.meta.url),"utf8").replace(/import type[^\n]+\n/,"");
-const source=fs.readFileSync(new URL("../lib/curriculum.ts",import.meta.url),"utf8");
-const compiled=ts.transpileModule(source.replace('import { expandedLessons } from "./expanded-lessons";',extended),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-const {lessons,grade}=await import("data:text/javascript;base64,"+Buffer.from(compiled).toString("base64"));
-assert.equal(new Set(lessons.map(l=>l.id)).size,lessons.length);
-assert.equal(lessons.length,33);
-for(const l of lessons){assert.equal(l.exercises.length,3);assert.equal(grade(l,l.exercises.map(e=>e.answers[0])).score,3);for(const e of l.exercises){assert.ok(e.explanation);if(e.options)assert.ok(e.options.includes(e.answers[0]));}}
-assert.ok(lessons.filter(l=>l.exercises.some(e=>!e.options)).length>=8);
+const require=createRequire(import.meta.url);
+require.extensions[".ts"]=(module,filename)=>{
+  const source=fs.readFileSync(filename,"utf8");
+  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});
+  module._compile(compiled.outputText,filename);
+};
+const {lessons,grade,normalize}=require("../lib/curriculum.ts");
+const {fieldOrder,fields,films,nextInRoute}=require("../lib/field-guide.ts");
+const {filmLines}=require("../lib/film-transcripts.ts");
+const {conversationTopics}=require("../lib/conversations.ts");
+const legacy=lessons.filter(l=>!l.field);
+const fieldLessons=lessons.filter(l=>l.field);
+assert.equal(new Set(lessons.map(l=>l.id)).size,49);
+assert.equal(legacy.length,33);
+assert.equal(fieldLessons.length,16);
+assert.equal(lessons.reduce((sum,l)=>sum+l.exercises.length,0),179);
+assert.equal(new Set(conversationTopics.map(t=>t.id)).size,27);
+for(const l of lessons){
+  const n=l.field?5:3;
+  assert.equal(l.exercises.length,n);
+  assert.equal(grade(l,l.exercises.map(e=>e.answers[0])).score,n);
+  for(const e of l.exercises){
+    assert.ok(e.explanation);
+    assert.ok(e.answers.every(a=>typeof a==="string"&&a.trim().length));
+    if(e.options)assert.ok(e.options.includes(e.answers[0]));
+    if(e.activity?.kind==="order"){
+      const tiles=e.activity.tiles;
+      assert.notEqual(normalize(tiles.join(" ")),normalize(e.answers[0]));
+      assert.deepEqual(normalize(tiles.join(" ")).split(" ").sort(),normalize(e.answers[0]).split(" ").sort());
+    }
+    if(e.activity?.kind==="model")assert.ok(fields.bridge.landmarks.some(p=>p.word===e.answers[0]));
+  }
+}
+assert.ok(legacy.filter(l=>l.exercises.some(e=>!e.options)).length>=8);
+for(const route of fieldOrder){
+  const chain=fieldLessons.filter(l=>l.field.route===route);
+  assert.deepEqual(chain.map(l=>l.level),["A2+","B1","B1","B2"]);
+  assert.equal(nextInRoute(lessons,[{lesson_id:chain[0].id}],chain[0]),chain[1]);
+  assert.ok(fs.statSync(new URL("../public/media/field/"+route+".webp",import.meta.url)).size>2000);
+}
+for(const [id,film] of Object.entries(films)){
+  const l=lessons.find(l=>l.id===film.lesson);
+  assert.ok(l?.exercises.some(e=>e.activity?.kind==="film"&&e.activity.film===id));
+  for(const ext of [".webp",".mp4",".en.vtt"])assert.ok(fs.statSync(new URL("../public/media/films/"+id+ext,import.meta.url)).size>100);
+  assert.ok(filmLines[id].length>=5);
+}
+assert.equal(nextInRoute(lessons,[]),fieldLessons[0]);
+assert.equal(nextInRoute(lessons,lessons.map(l=>({lesson_id:l.id}))),undefined);
+assert.equal(normalize(" If we change here,  we can arrive. "),normalize("If we change here we can arrive"));
 const past=lessons.find(l=>l.id==="past-work");
 assert.equal(grade(past,["created","did","I did not send the drawings."]).score,3);
 assert.equal(grade(past,["am created","are","I didn't sent the drawings"]).score,0);
@@ -26,7 +68,37 @@ const save=db.prepare("INSERT INTO progress(user_id,lesson_id,score,total,answer
 save.run("u1","past-work",1,3,"[]","2026-10-01");save.run("u1","past-work",3,3,"[]","2026-10-02");save.run("u2","past-work",0,3,"[]","2026-10-01");
 assert.equal(db.prepare("SELECT score FROM progress WHERE user_id=?").get("u1").score,3);
 assert.equal(db.prepare("SELECT COUNT(*) AS n FROM progress WHERE user_id=?").get("u1").n,1);
-db.close();console.log("Passed: grading variants, incorrect grammar, migration, per-user quota, next-day reset, isolated progress updates.");
+
+// Exercise the same handlers as the UI with two synthetic identities and a real SQL database.
+let profileId="reader-a";
+const testDb={prepare(sql){
+  const statement=db.prepare(sql);
+  return {bind(...values){return {
+    all:()=>({results:statement.all(...values)}),first:()=>statement.get(...values),run:()=>statement.run(...values)
+  };}};
+}};
+const serverPath=require.resolve("../lib/server.ts");
+require.cache[serverPath]={exports:{
+  authorize:async()=>({userId:profileId,fullName:"Test reader"}),database:()=>testDb,groqKey:()=>undefined,
+  errorResponse:e=>{throw e;}
+}};
+const api=require("../app/api/studio/route.ts");
+const unit=fieldLessons[0];
+const responses=unit.exercises.map(e=>e.answers[0]);
+responses[1]="An incorrect answer";
+const request=()=>new Request("http://localhost/api/studio");
+const submitAnswers=answers=>api.POST(new Request(request(),{method:"POST",body:JSON.stringify({action:"submit",lessonId:unit.id,answers})}));
+assert.equal((await (await submitAnswers(responses)).json()).score,4);
+const first=await (await api.GET(request())).json();
+assert.equal(first.aiReady,false);
+assert.deepEqual(first.progress[0].missed,[1]);
+profileId="reader-b";
+assert.deepEqual((await (await api.GET(request())).json()).progress,[]);
+await submitAnswers(unit.exercises.map(e=>e.answers[0]));
+assert.deepEqual((await (await api.GET(request())).json()).progress[0].missed,[]);
+profileId="reader-a";
+assert.equal((await (await api.GET(request())).json()).progress[0].score,4);
+db.close();console.log("Passed: 49 lessons, 179 exercises, route progression, local media, 27 conversation topics, grading, migration, quotas and two independent review histories.");
 
 
 

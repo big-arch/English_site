@@ -1,6 +1,10 @@
 import { expandedLessons } from "./expanded-lessons";
-export type Exercise = { prompt: string; options?: string[]; answers: string[]; explanation: string };
-export type Lesson = { id: string; topic: string; title: string; subtitle: string; level: string; minutes: number; rule: string; examples: string[]; text: string; glossary: [string,string][]; exercises: Exercise[] };
+import { bridgeLessons } from "./fields/bridge";
+import { handoverLessons } from "./fields/handover";
+import { commuteLessons } from "./fields/commute";
+import { cafeLessons } from "./fields/cafe";
+import type { Lesson } from "./lesson-types";
+export type { Exercise, Lesson } from "./lesson-types";
 
 export const lessons: Lesson[] = [
  {id:"past-work",topic:"Грамматика",title:"Расскажи, что ты сделал",subtitle:"Past Simple в рабочих ситуациях",level:"A2",minutes:7,rule:"Завершённое действие в прошлом: created, finished, sent. В вопросе прошлое показывает did, поэтому основной глагол возвращается к начальной форме. В отрицании: didn't + начальная форма. Не добавляй am или are к created.",examples:["I created a new model yesterday.","When did you finish the model?","I didn't send the drawings."],text:"Yesterday Artur created a bridge model. He checked the drawings and added the attributes. He didn't send the model because one file was missing. This morning, his colleague sent the file, and Artur finished the task.",glossary:[["drawings","чертежи"],["attributes","атрибуты"],["missing","отсутствующий"]],exercises:[
@@ -39,9 +43,9 @@ export const lessons: Lesson[] = [
  {prompt:"I work ___ a BIM manager.",options:["as","on","at"],answers:["as"],explanation:"Work as + должность."},
  {prompt:"What ___ this abbreviation mean?",options:["does","is","have"],answers:["does"],explanation:"Вопрос с mean: What does … mean?"},
  {prompt:"Как Макс поступил с незнакомой аббревиатурой?",options:["Попросил объяснить","Ушёл","Пропустил встречу"],answers:["Попросил объяснить"],explanation:"He asks a colleague to explain it."}]}
-, ...expandedLessons];
+, ...expandedLessons, ...bridgeLessons, ...handoverLessons, ...commuteLessons, ...cafeLessons];
 export const topics = ["Все темы", ...new Set(lessons.map(lesson=>lesson.topic))];
-export function normalize(value: string) { return value.toLowerCase().replace(/[’`]/g,"'").trim().replace(/[.!?]+$/g,"").replace(/\s+/g," "); }
+export function normalize(value: string) { return value.toLowerCase().replace(/[’‘`]/g,"'").replace(/,/g," ").trim().replace(/[.!?]+$/g,"").trim().replace(/\s+/g," "); }
 export function grade(lesson: Lesson, answers: string[]) {
  const results = lesson.exercises.map((e,i)=>({correct:e.answers.some(a=>normalize(a)===normalize(answers[i]??"")),answer:e.answers[0],explanation:e.explanation,prompt:e.prompt,given:answers[i]??""}));
  return {score:results.filter(r=>r.correct).length,total:results.length,results};

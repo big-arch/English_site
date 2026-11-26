@@ -1,6 +1,6 @@
 # English Studio
 
-Online PWA for Russian-speaking English learners. Nine A2 lessons, original reading texts and exercises, links to official video lessons, three AI tutor roles, saved progress and chat history.
+Online PWA for Russian-speaking English learners. A2–B2 lessons, original readings and subtitled films, an interactive bridge study, three AI tutor roles, saved progress and chat history.
 
 ## Run locally
 
@@ -18,13 +18,13 @@ Production environment changes require deploying the saved version again. Never 
 
 ## Voice and privacy
 
-Microphone recording is explicitly initiated by the user, limited to two minutes, transcribed by Groq, and presented for editing before sending. The app does not persist the audio. Text conversations are stored per authenticated user. Browser speech synthesis provides playback using installed voices; availability and quality vary by device. No pronunciation score is inferred from a transcript.
+Microphone recording is explicitly initiated by the user, limited to two minutes, transcribed by Groq, and presented for editing before sending. The app does not persist the audio. Text conversations are stored per authenticated user. The speech endpoint serves English WAV audio from Groq Orpheus. Enable the model and accept its provider terms for the server account. Speech has its own daily allowance of 40 requests per user. The original course films have bundled English audio and captions. No pronunciation score is inferred from a transcript.
 
 ## Persistence and access
 
 Cloudflare D1 stores profiles, lesson attempts, messages and daily quota counters. Access uses Sites-provided ChatGPT identity. New Sites remain owner-private by default. Runtime changes require verified identity and same-origin requests. The service worker caches only the offline fallback and icons, never personal API responses or lesson history.
 
-Current lessons are A2 regardless of the selected profile level. That setting guides AI prompts and is not a CEFR certificate. Exercise percentages reflect the latest attempt per lesson, not validated proficiency. Free-text lesson answers use explicit accepted variants; other natural formulations may need tutor review.
+The catalog includes A2, A2+, B1 and B2 material. The profile level guides AI prompts. Use the catalog filters to choose practice difficulty. Exercise percentages reflect the latest attempt per lesson, not validated proficiency. Free-text lesson answers use explicit accepted variants; other natural formulations may need tutor review.
 
 ## Reference
 

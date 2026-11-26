@@ -1,6 +1,20 @@
-# vinext-starter
+# English Studio
 
-A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
+Русскоязычная учебная PWA для занятий английским на компьютере и телефоне. В курсе 49 уроков, 179 проверяемых заданий, 27 разговорных ситуаций и три ИИ-репетитора. Доступ к онлайн-версии настроен для владельца. [Открыть English Studio](https://artur-english-studio.bimmanager981.chatgpt.site)
+
+## Как проходит занятие
+
+Ученик изучает короткий текст и слова, выполняет задания, получает пояснения и открывает следующий урок. Четыре маршрута развивают одну ситуацию от A2+ до B2. В них можно выбрать деталь моста на модели Three.js или фотографии, собрать реплику, посмотреть один из трёх коротких фильмов с английскими субтитрами и написать собственный ответ. Правила, задания и фильмы доступны независимо от квоты ИИ.
+
+Личная история хранится в Cloudflare D1. Повторение ошибок тренирует отдельные задания. Полная повторная попытка обновляет оценку урока. Ориентиры A2–B2 описывают материал.
+
+## Материалы и разработка
+
+- Настройка ИИ, голосовых функций и базы — [SETUP.md](SETUP.md).
+- Источники исследования и решения для курса — [обзор Duolingo, Lingualeo, Busuu и Babbel](docs/learning-design.md).
+- Происхождение изображений и роликов — [учебные фотографии](docs/media-sources.md) и [учебные фильмы](docs/film-credits.md).
+- Уроки находятся в `lib/curriculum.ts`, `lib/expanded-lessons.ts` и `lib/fields/`. Разговорные темы — в `lib/conversations.ts`.
+- Основные проверки — `node tests/core.mjs`, `node tests/speech.mjs`, `node node_modules/typescript/bin/tsc --noEmit` и `npm run build`.
 
 ## Prerequisites
 
@@ -103,7 +117,7 @@ Use SIWC for account pages, user-specific dashboards, saved records, and write a
 For a D1-backed local preview, generate SQL with `npm run db:generate`. Build once through the Sites skill's build entrypoint (or `npm run build` for standalone use) to generate `dist/server/wrangler.json`, rebuilding if bindings change. From the project root, apply each pending migration in order:
 
 ```sh
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_example.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_dashing_doctor_faustus.sql
 ```
 
 Replace the filename with the pending migration and `DB` with your D1 binding name if different. Use `.wrangler/state`, not `.wrangler/state/v3`; Wrangler adds the versioned directories. Do not replay migrations already applied locally. This updates only the preview database; publishing applies production migrations separately.

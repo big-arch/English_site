@@ -1,4 +1,5 @@
 import { lessons, grade, tutors } from "../../../lib/curriculum";
+import type { Attempt } from "../../../lib/lesson-types";
 import { z } from "zod";
 import { authorize, database, errorResponse, AppError, groqKey, reserveQuota, groq } from "../../../lib/server";
 export const dynamic="force-dynamic";
@@ -13,12 +14,17 @@ export async function GET(request:Request) {
  const user=await authorize(request); const db=database();
  await db.prepare("INSERT INTO profiles(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING").bind(user.userId).run();
  const profile=await db.prepare("SELECT level,goal FROM profiles WHERE user_id=?").bind(user.userId).first();
- const progress=await db.prepare("SELECT lesson_id,score,total,answers,updated_at FROM progress WHERE user_id=? ORDER BY updated_at DESC").bind(user.userId).all();
+ const progress=await db.prepare("SELECT lesson_id,score,total,answers,updated_at FROM progress WHERE user_id=? ORDER BY updated_at DESC").bind(user.userId).all<Attempt>();
+ const attempts=progress.results.map(row=>{
+   const lesson=lessons.find(item=>item.id===row.lesson_id);
+   const missed=lesson && row.score<row.total ? grade(lesson,JSON.parse(row.answers)).results.flatMap((answer,i)=>answer.correct?[]:[i]) : [];
+   return {...row,missed};
+ });
  const tutorId=new URL(request.url).searchParams.get("tutor");
  let messages:unknown[]=[];
  if(tutorId && tutors.some(t=>t.id===tutorId)){
  const rows=await db.prepare("SELECT role,content FROM chats WHERE user_id=? AND tutor=? ORDER BY created_at DESC LIMIT 24").bind(user.userId,tutorId).all(); messages=rows.results.reverse(); }
- return Response.json({profile,progress:progress.results,messages,aiReady:!!groqKey(),name:user.fullName || "Мой профиль"},{headers:{"Cache-Control":"no-store"}});
+ return Response.json({profile,progress:attempts,messages,aiReady:!!groqKey(),name:user.fullName || "Мой профиль"},{headers:{"Cache-Control":"no-store"}});
  } catch(e){return errorResponse(e);}
 }
 export async function POST(request:Request) {
